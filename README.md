@@ -1,6 +1,10 @@
 # 3dsgg
 
-3D Scene Graph Generation in Ai2thor 0.0.44
+3D Scene Graph Generation in Ai2thor 0.0.44  
+
+ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
+VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
+PyTorch_YOLOv3 : YOLOv3 repo  
 
 ## How to run
 ```
@@ -11,6 +15,4 @@ python run_thor.py
 
 ```
 
-ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
-VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
-PyTorch_YOLOv3 : YOLOv3 repo  
+
