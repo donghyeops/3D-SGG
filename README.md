@@ -11,6 +11,6 @@ python run_thor.py
 
 ```
 
-ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation
-VeQA : Question Answering System (this need reasoning server with knowrob ontology)
-PyTorch_YOLOv3 : YOLOv3 repo
+ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
+VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
+PyTorch_YOLOv3 : YOLOv3 repo  
