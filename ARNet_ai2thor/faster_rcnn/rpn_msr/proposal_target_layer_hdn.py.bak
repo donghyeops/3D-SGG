@@ -1,0 +1,492 @@
+#-*- coding: utf-8 -*-
+# --------------------------------------------------------
+# Faster R-CNN
+# Copyright (c) 2015 Microsoft
+# Licensed under The MIT License [see LICENSE for details]
+# Written by Ross Girshick and Sean Bell
+# --------------------------------------------------------
+
+import yaml
+import numpy as np
+import numpy.random as npr
+import pdb
+
+from .utils.cython_bbox import bbox_overlaps, bbox_intersections
+
+# TODO: make fast_rcnn irrelevant
+# >>>> obsolete, because it depends on sth outside of this project
+from .fast_rcnn.config import cfg
+from .fast_rcnn.bbox_transform import bbox_transform
+from .roi_pooling.modules.roi_pool import RoIPool
+
+# <<<< obsolete
+
+show_box_pair_generation = False ## box pair 생성 결과 확인
+show_normal_box_check = False ## box 정규화가 잘 처리되는지 확인
+
+DEBUG = False
+
+
+#  object_rois, object_labels, bbox_targets, bbox_inside_weights, bbox_outside_weights, mat_object, \
+#              phrase_rois, phrase_label, mat_phrase = \
+#              proposal_target_layer_py(object_rois, gt_objects, gt_relationships,
+#                  n_classes_obj, n_classes_pred, is_training)
+
+
+
+
+def proposal_target_layer(object_rois, gt_objects, gt_relationships,
+                n_classes_obj, voc_eos, is_training, graph_generation=False,
+                refiner_name='None', spatial_name='None'):
+
+    #     object_rois:  (1 x H x W x A, 5) [0, x1, y1, x2, y2]
+    #     gt_objects:   (G_obj, 5) [x1 ,y1 ,x2, y2, obj_class] float
+    #     gt_relationships: (G_obj, G_obj) [pred_class] int (-1 for no relationship)
+    #     # dontcare_areas: (D, 4) [ x1, y1, x2, y2]
+    #     n_classes_obj
+    #     n_classes_pred
+    #     is_training to indicate whether in training scheme
+
+    # Proposal ROIs (0, x1, y1, x2, y2) coming from RPN
+    # (i.e., rpn.proposal_layer.ProposalLayer), or any other source
+
+    # TODO(rbg): it's annoying that sometimes I have extra info before
+    # and other times after box coordinates -- normalize to one format
+
+    # Include ground-truth boxes in the set of candidate rois
+
+    # assert is_training == True, 'Evaluation Code haven\'t been implemented'
+
+    
+
+    # Sample rois with classification labels and bounding box regression
+    # targets
+    if is_training:
+        all_rois = object_rois
+        zeros = np.zeros((gt_objects.shape[0], 1), dtype=gt_objects.dtype)
+        all_rois = np.vstack(
+            (all_rois, np.hstack((zeros, gt_objects[:, :4])))
+        )
+
+        # Sanity check: single batch only
+        assert np.all(all_rois[:, 0] == 0), \
+            'Only single item batches are supported'
+
+        object_labels, object_rois, bbox_targets, bbox_inside_weights, \
+            phrase_labels, phrase_rois, \
+                mat_object, mat_phrase, sub_spatial_f, obj_spatial_f \
+                    = _sample_rois(all_rois, \
+                        gt_objects, gt_relationships, 1, n_classes_obj, voc_eos, is_training, refiner_name, spatial_name)
+
+
+        object_labels = object_labels.reshape(-1, 1)
+        bbox_targets = bbox_targets.reshape(-1, n_classes_obj * 4)
+        bbox_inside_weights = bbox_inside_weights.reshape(-1, n_classes_obj * 4)
+        phrase_labels = phrase_labels.reshape(-1, 1)
+        bbox_outside_weights = np.array(bbox_inside_weights > 0).astype(np.float32)
+    else:
+        object_rois, phrase_rois, mat_object, mat_phrase, sub_spatial_f, obj_spatial_f  = \
+                    _setup_connection(object_rois, graph_generation=graph_generation, refiner_name=refiner_name, spatial_name=spatial_name)
+        object_labels, bbox_targets, bbox_inside_weights, bbox_outside_weights, phrase_labels, \
+             = [None] * 9
+    # print 'object_rois'
+    # print object_rois
+    # print 'phrase_rois'
+    # print phrase_rois
+
+    if DEBUG:
+        # print 'object num fg: {}'.format((object_labels > 0).sum())
+        # print 'object num bg: {}'.format((object_labels == 0).sum())
+        # print 'relationship num fg: {}'.format((phrase_labels > 0).sum())
+        # print 'relationship num bg: {}'.format((phrase_labels == 0).sum())
+        count = 1
+        fg_num = (object_labels > 0).sum()
+        bg_num = (object_labels == 0).sum()
+        print('object num fg avg: {}'.format(fg_num / count))
+        print('object num bg avg: {}'.format(bg_num / count))
+        print('ratio: {:.3f}'.format(float(fg_num) / float(bg_num)))
+        count_rel = 1
+        fg_num_rel = (phrase_labels > 0).sum()
+        bg_num_rel = (phrase_labels == 0).sum()
+        print('relationship num fg avg: {}'.format(fg_num_rel / count_rel))
+        print('relationship num bg avg: {}'.format(bg_num_rel / count_rel))
+        print('ratio: {:.3f}'.format(float(fg_num_rel) / float(bg_num_rel)))
+        # print mat_object.shape
+        # print mat_phrase.shape
+
+    # mps_object [object_batchsize, 2, n_phrase] : the 2 channel means inward(object) and outward(subject) list
+    assert object_rois.shape[1] == 5
+    assert phrase_rois.shape[1] == 5
+
+    return object_labels, object_rois, bbox_targets, bbox_inside_weights, bbox_outside_weights, mat_object, \
+            phrase_labels, phrase_rois, mat_phrase, \
+            sub_spatial_f, obj_spatial_f ## 추가
+
+
+def _get_bbox_regression_labels(bbox_target_data, num_classes):
+    """Bounding-box regression targets (bbox_target_data) are stored in a
+    compact form N x (class, tx, ty, tw, th)
+
+    This function expands those targets into the 4-of-4*K representation used
+    by the network (i.e. only one class has non-zero targets).
+
+    Returns:
+        bbox_target (ndarray): N x 4K blob of regression targets
+        bbox_inside_weights (ndarray): N x 4K blob of loss weights
+    """
+
+    clss = bbox_target_data[:, 0]
+    bbox_targets = np.zeros((clss.size, 4 * num_classes), dtype=np.float32)
+    bbox_inside_weights = np.zeros(bbox_targets.shape, dtype=np.float32)
+    inds = np.where(clss > 0)[0]
+    for ind in inds:
+        cls = int(clss[ind])
+        start = 4 * cls
+        end = start + 4
+        bbox_targets[ind, start:end] = bbox_target_data[ind, 1:]
+        bbox_inside_weights[ind, start:end] = cfg.TRAIN.BBOX_INSIDE_WEIGHTS
+    return bbox_targets, bbox_inside_weights
+
+
+def _compute_targets(ex_rois, gt_rois, labels):
+    """Compute bounding-box regression targets for an image."""
+
+    assert ex_rois.shape[0] == gt_rois.shape[0]
+    assert ex_rois.shape[1] == 4
+    assert gt_rois.shape[1] == 4
+
+    targets = bbox_transform(ex_rois, gt_rois)
+    # if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+    #     # Optionally normalize targets by a precomputed mean and stdev
+    #     targets = ((targets - np.array(cfg.TRAIN.BBOX_NORMALIZE_MEANS))
+    #                / np.array(cfg.TRAIN.BBOX_NORMALIZE_STDS))
+    return np.hstack(
+        (labels[:, np.newaxis], targets)).astype(np.float32, copy=False)
+
+
+def _sample_rois(object_rois, gt_objects, gt_relationships, num_images, num_classes, voc_eos, is_training, refiner_name, spatial_name):
+    """Generate a random sample of RoIs comprising foreground and background
+    examples.
+    """
+    # overlaps: (rois x gt_boxes)
+
+    rois_per_image = cfg.TRAIN.BATCH_SIZE / num_images
+    fg_rois_per_image = np.round(cfg.TRAIN.FG_FRACTION * rois_per_image)
+
+    overlaps = bbox_overlaps(
+        np.ascontiguousarray(object_rois[:, 1:5], dtype=np.float),
+        np.ascontiguousarray(gt_objects[:, :4], dtype=np.float))
+    gt_assignment = overlaps.argmax(axis=1)
+    max_overlaps = overlaps.max(axis=1)
+    labels = gt_objects[gt_assignment, 4]
+
+    # Select foreground RoIs as those with >= FG_THRESH overlap
+    fg_inds = np.where(max_overlaps >= cfg.TRAIN.FG_THRESH)[0]
+
+    # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
+    bg_inds = np.where((max_overlaps < cfg.TRAIN.BG_THRESH_HI) &
+                       (max_overlaps >= cfg.TRAIN.BG_THRESH_LO))[0]
+
+    # Guard against the case when an image has fewer than fg_rois_per_image
+    # foreground RoIs
+    fg_rois_per_this_image = int(min(fg_rois_per_image, fg_inds.size))
+    # fg_rois_per_this_image = int(min(bg_inds.size, fg_inds.size))
+    if fg_inds.size > 0:
+        fg_inds = npr.choice(fg_inds, size=fg_rois_per_this_image, replace=False)
+
+    # Compute number of background RoIs to take from this image (guarding
+    # against there being fewer than desired)
+    bg_rois_per_this_image = rois_per_image - fg_rois_per_this_image
+    bg_rois_per_this_image = min(bg_rois_per_this_image, bg_inds.size)
+    # bg_rois_per_this_image = fg_rois_per_this_image
+    if bg_inds.size > 0:
+        bg_inds = npr.choice(bg_inds, size=bg_rois_per_this_image, replace=False)
+
+    # The indices that we're selecting (both fg and bg)
+    keep_inds = np.append(fg_inds, bg_inds)
+    # Select sampled values from various arrays:
+    labels = labels[keep_inds]
+    # Clamp labels for the background RoIs to 0
+    labels[fg_rois_per_this_image:] = 0
+    rois = object_rois[keep_inds]
+
+    bbox_target_data = _compute_targets(
+        rois[:, 1:5], gt_objects[gt_assignment[keep_inds], :4], labels)
+
+    bbox_targets, bbox_inside_weights = \
+        _get_bbox_regression_labels(bbox_target_data, num_classes)
+
+#### prepare relationships targets
+
+
+    rel_per_image = int(cfg.TRAIN.BATCH_SIZE_RELATIONSHIP / num_images)
+    rel_bg_num = rel_per_image
+    if fg_inds.size > 0:
+        assert fg_inds.size == fg_inds.shape[0]
+        id_i, id_j = np.meshgrid(range(fg_inds.size), range(fg_inds.size), indexing='ij') # Grouping the input object rois
+        id_i = id_i.reshape(-1) 
+        id_j = id_j.reshape(-1)
+        pair_labels = gt_relationships[gt_assignment[fg_inds[id_i]], gt_assignment[fg_inds[id_j]]]
+        fg_id_rel = np.where(pair_labels > 0)[0]
+        rel_fg_num = fg_id_rel.size
+        rel_fg_num = int(min(np.round(rel_per_image * cfg.TRAIN.FG_FRACTION_RELATIONSHIP), rel_fg_num))
+        # print 'rel_fg_num'
+        # print rel_fg_num
+        if rel_fg_num > 0:
+            fg_id_rel = npr.choice(fg_id_rel, size=rel_fg_num, replace=False)
+        else:
+            fg_id_rel = np.empty(0, dtype=int)
+        rel_labels_fg = pair_labels[fg_id_rel]
+        sub_assignment_fg = id_i[fg_id_rel]
+        obj_assignment_fg = id_j[fg_id_rel]
+        sub_list_fg = fg_inds[sub_assignment_fg]
+        obj_list_fg = fg_inds[obj_assignment_fg]
+        rel_bg_num = rel_per_image - rel_fg_num
+
+    phrase_labels = np.zeros(rel_bg_num, dtype=np.float)
+    sub_assignment = npr.choice(range(keep_inds.size), size=rel_bg_num, replace=True)
+    obj_assignment = npr.choice(range(keep_inds.size), size=rel_bg_num, replace=True)
+    sub_list = keep_inds[sub_assignment]
+    obj_list = keep_inds[obj_assignment]
+
+    if fg_inds.size > 0:
+        phrase_labels = np.append(phrase_labels, rel_labels_fg)
+        sub_list = np.append(sub_list, sub_list_fg)
+        obj_list = np.append(obj_list, obj_list_fg)
+        sub_assignment = np.append(sub_assignment, sub_assignment_fg)
+        obj_assignment = np.append(obj_assignment, obj_assignment_fg)
+
+    phrase_rois = box_union(object_rois[sub_list, :], object_rois[obj_list, :])
+    
+    #show_box_pair_generation = True ## box pair 생성 결과 확인
+    if show_box_pair_generation:
+        print('-- show_box_pair_generation --')
+        print(('object_rois :', object_rois.shape, type(object_rois)))
+        print(('len(sub_list), len(obj_list) :', len(sub_list), len(obj_list)))
+        print(('object_rois[sub_list, :] :', object_rois[sub_list, :].shape, type(object_rois[sub_list, :])))
+        print(('object_rois[obj_list, :] :', object_rois[obj_list, :].shape, type(object_rois[obj_list, :])))
+        print(('phrase_rois :', phrase_rois.shape, type(phrase_rois)))
+        print('------------------------------')
+        
+    if spatial_name == 'bbox':
+        ## spatial feature 생성
+        ## union box 기준의 좌표로 만들기
+        normal_sub_box = object_rois[sub_list, :].copy() ##
+        normal_sub_box[:, 1::2] -= phrase_rois[:, [1,1]] # sub_x1, sub_x2 -= union_x1, [1]로 하면 msdn환경에서 오류남
+        normal_sub_box[:, 2::2] -= phrase_rois[:, [2,2]] # sub_y1, sub_y2 -= union_y1 
+        
+        normal_obj_box = object_rois[obj_list, :].copy() ##
+        normal_obj_box[:, 1::2] -= phrase_rois[:, [1,1]] # obj_x1, obj_x2 -= union_x1
+        normal_obj_box[:, 2::2] -= phrase_rois[:, [2,2]] # obj_y1, obj_y2 -= union_y1
+        
+        ## 상대좌표로 만들기
+        normal_sub_box[:, 1::2] /= phrase_rois[:, [3,3]] - phrase_rois[:, [1,1]] # sub_x1, sub_x2 /= union_w
+        normal_sub_box[:, 2::2] /= phrase_rois[:, [4,4]] - phrase_rois[:, [2,2]] # sub_x1, sub_x2 /= union_h
+        if True in np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)):
+            print('!! divide error:sub !! :', normal_sub_box[np.where(np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)))])
+            normal_sub_box = np.where(np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)), 0, normal_sub_box) # divide 오류 방지
+        
+        normal_obj_box[:, 1::2] /= phrase_rois[:, [3,3]] - phrase_rois[:, [1,1]] # obj_x1, obj_x2 /= union_w
+        normal_obj_box[:, 2::2] /= phrase_rois[:, [4,4]] - phrase_rois[:, [2,2]] # obj_y1, obj_y2 /= union_h
+        if True in np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)):
+            print('!! divide error:obj !! :', normal_obj_box[np.where(np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)))])
+            normal_obj_box = np.where(np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)), 0, normal_obj_box) # divide 오류 방지
+        
+        
+        ## (0, x1, y1, x2, y2) -> (xmid, ymid, w, h)
+        normal_sub_box[:, 3:] = normal_sub_box[:, 3:] - normal_sub_box[:, 1:3]
+        normal_sub_box[:, 1:3] += normal_sub_box[:, 3:]/2
+        sub_spatial_f = normal_sub_box[:, 1:]
+        normal_obj_box[:, 3:] = normal_obj_box[:, 3:] - normal_obj_box[:, 1:3]
+        normal_obj_box[:, 1:3] += normal_obj_box[:, 3:]/2
+        obj_spatial_f = normal_obj_box[:, 1:]
+    
+        #show_normal_box_check = False
+        if show_normal_box_check: ##
+            print('-- show_normal_box_check --')
+            print('union_box[:4,:] v/t :\n', phrase_rois[:4, :], phrase_rois.shape)
+            print('sub_box[:4,:] v/t :\n', object_rois[sub_list, :][:4, :], object_rois[sub_list, :].shape)
+            print('sub_spatial_f[:4,:] v/t :\n', sub_spatial_f[:4, :], sub_spatial_f.shape)
+            print('obj_list[:4,:] v/t :\n', object_rois[obj_list, :][:4, :], object_rois[obj_list, :].shape)
+            print('obj_spatial_f[:4,:] v/t :\n', obj_spatial_f[:4, :], obj_spatial_f.shape)
+            print('---------------------------')
+        ##################################
+    elif spatial_name == 'mask':
+        sub_box = object_rois[sub_list, :].copy() ## sub box 좌표 모음 (xmin, ymin, xmax, ymax)
+        obj_box = object_rois[obj_list, :].copy() ##
+        phr_box = np.zeros((phrase_rois.shape[0], 2)) ## [phrase#, [w, h]]
+        phr_box[:, 0] = phrase_rois[:, 3] - phrase_rois[:, 1]
+        phr_box[:, 1] = phrase_rois[:, 4] - phrase_rois[:, 2]
+        phr_box[phr_box==0] = 1 # 너비, 높이가 0일 때 1로 변경
+        
+        ## union box 기준의 좌표로 만들기
+        sub_box[:, 1::2] -= phrase_rois[:, [1,1]] # sub_x1, sub_x2 -= union_x1, [1]로 하면 msdn환경에서 오류남
+        sub_box[:, 2::2] -= phrase_rois[:, [2,2]] # sub_y1, sub_y2 -= union_y1 
+        obj_box[:, 1::2] -= phrase_rois[:, [1,1]] # obj_x1, obj_x2 -= union_x1
+        obj_box[:, 2::2] -= phrase_rois[:, [2,2]] # obj_y1, obj_y2 -= union_y1
+        
+        ## 32*32 박스로 리사이즈
+        sub_box[:, 1::2] *= 31./phr_box[:, [0,0]]
+        sub_box[:, 2::2] *= 31./phr_box[:, [1,1]]
+        obj_box[:, 1::2] *= 31./phr_box[:, [0,0]]
+        obj_box[:, 2::2] *= 31./phr_box[:, [1,1]]
+        
+        ## int 변환
+        sub_box = sub_box.astype('int')
+        obj_box = obj_box.astype('int')
+        
+        ## 마이너스 제거 (혹시 몰라서)
+        sub_box[sub_box<0] = 0
+        obj_box[obj_box<0] = 0
+        
+        # 마스크 생성
+        sub_spatial_f = np.zeros((phrase_rois.shape[0], 1, 32, 32)) ## [phrase#, C, H, W]
+        obj_spatial_f = np.zeros((phrase_rois.shape[0], 1, 32, 32)) ## [phrase#, C, H, W]
+        for idx, mask in enumerate(sub_spatial_f):
+            mask[0, sub_box[idx, 1]:sub_box[idx, 3]+1, sub_box[idx, 2]:sub_box[idx, 4]+1] = 1.0
+        for idx, mask in enumerate(obj_spatial_f):
+            mask[0, obj_box[idx, 1]:obj_box[idx, 3]+1, obj_box[idx, 2]:obj_box[idx, 4]+1] = 1.0
+        
+    else:
+        sub_spatial_f = None
+        obj_spatial_f = None
+        
+
+### prepare connection matrix
+    # mat_phrase.size() : (phrase_batchsize, 2[0:sub_list, 1:obj_list])
+    mat_object, mat_phrase = _prepare_mat(sub_assignment, obj_assignment, keep_inds.size)
+
+    return labels, rois, bbox_targets, bbox_inside_weights, \
+           phrase_labels, phrase_rois, \
+           mat_object, mat_phrase, \
+           sub_spatial_f, obj_spatial_f ## 추가
+
+
+def _setup_connection(object_rois, graph_generation=False, refiner_name='None', spatial_name='None'):
+    """Generate a random sample of RoIs comprising foreground and background
+    examples.
+    """
+    # overlaps: (rois x gt_boxes)
+    roi_num = cfg.TEST.BBOX_NUM # 64개
+    keep_inds = np.array(list(range(min(roi_num, object_rois.shape[0]))))
+    roi_num = len(keep_inds)
+    rois = object_rois[keep_inds]
+
+    id_i, id_j = _generate_pairs(keep_inds) # Grouping the input object rois and remove the diagonal items
+    phrase_rois = box_union(object_rois[id_i, :], object_rois[id_j, :])
+    
+    if spatial_name == 'bbox':
+        ## spatial feature 생성
+        ## union box 기준의 좌표로 만들기
+        normal_sub_box = object_rois[id_i, :].copy() ##
+        normal_sub_box[:, 1::2] -= phrase_rois[:, [1,1]] # sub_x1, sub_x2 -= union_x1, [1]로 하면 msdn환경에서 오류남
+        normal_sub_box[:, 2::2] -= phrase_rois[:, [2,2]] # sub_y1, sub_y2 -= union_y1 
+        
+        normal_obj_box = object_rois[id_j, :].copy() ##
+        normal_obj_box[:, 1::2] -= phrase_rois[:, [1,1]] # obj_x1, obj_x2 -= union_x1
+        normal_obj_box[:, 2::2] -= phrase_rois[:, [2,2]] # obj_y1, obj_y2 -= union_y1
+        
+        ## 상대좌표로 만들기
+        normal_sub_box[:, 1::2] /= phrase_rois[:, [3,3]] - phrase_rois[:, [1,1]] # sub_x1, sub_x2 /= union_w
+        normal_sub_box[:, 2::2] /= phrase_rois[:, [4,4]] - phrase_rois[:, [2,2]] # sub_x1, sub_x2 /= union_h
+        if True in np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)):
+            print('!! divide error:sub !! :', normal_sub_box[np.where(np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)))])
+            normal_sub_box = np.where(np.logical_or(np.isnan(normal_sub_box), np.isinf(normal_sub_box)), 0, normal_sub_box) # divide 오류 방지
+        
+        normal_obj_box[:, 1::2] /= phrase_rois[:, [3,3]] - phrase_rois[:, [1,1]] # obj_x1, obj_x2 /= union_w
+        normal_obj_box[:, 2::2] /= phrase_rois[:, [4,4]] - phrase_rois[:, [2,2]] # obj_y1, obj_y2 /= union_h
+        if True in np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)):
+            print('!! divide error:obj !! :', normal_obj_box[np.where(np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)))])
+            normal_obj_box = np.where(np.logical_or(np.isnan(normal_obj_box), np.isinf(normal_obj_box)), 0, normal_obj_box) # divide 오류 방지
+        
+        ## (0, x1, y1, x2, y2) -> (xmid, ymid, w, h)
+        normal_sub_box[:, 3:] = normal_sub_box[:, 3:] - normal_sub_box[:, 1:3]
+        normal_sub_box[:, 1:3] += normal_sub_box[:, 3:]/2
+        sub_spatial_f = normal_sub_box[:, 1:]
+        normal_obj_box[:, 3:] = normal_obj_box[:, 3:] - normal_obj_box[:, 1:3]
+        normal_obj_box[:, 1:3] += normal_obj_box[:, 3:]/2
+        obj_spatial_f = normal_obj_box[:, 1:]
+        #######################
+    elif spatial_name == 'mask':
+        sub_box = object_rois[id_i, :].copy() ## sub box 좌표 모음 (xmin, ymin, xmax, ymax)
+        obj_box = object_rois[id_j, :].copy() ##
+        phr_box = np.zeros((phrase_rois.shape[0], 2)) ## [phrase#, [w, h]]
+        phr_box[:, 0] = phrase_rois[:, 3] - phrase_rois[:, 3]
+        phr_box[:, 1] = phrase_rois[:, 4] - phrase_rois[:, 2]
+        phr_box[phr_box==0] = 1 # 너비, 높이가 0일 때 1로 변경
+        
+        ## union box 기준의 좌표로 만들기
+        sub_box[:, 1::2] -= phrase_rois[:, [1,1]] # sub_x1, sub_x2 -= union_x1, [1]로 하면 msdn환경에서 오류남
+        sub_box[:, 2::2] -= phrase_rois[:, [2,2]] # sub_y1, sub_y2 -= union_y1 
+        obj_box[:, 1::2] -= phrase_rois[:, [1,1]] # obj_x1, obj_x2 -= union_x1
+        obj_box[:, 2::2] -= phrase_rois[:, [2,2]] # obj_y1, obj_y2 -= union_y1
+        
+        ## 32*32 박스로 리사이즈
+        sub_box[:, 1::2] *= 31./phr_box[:, [0,0]]
+        sub_box[:, 2::2] *= 31./phr_box[:, [1,1]]
+        obj_box[:, 1::2] *= 31./phr_box[:, [0,0]]
+        obj_box[:, 2::2] *= 31./phr_box[:, [1,1]]
+        
+        ## int 변환
+        sub_box = sub_box.astype('int')
+        obj_box = obj_box.astype('int')
+        
+        ## 마이너스 제거 (혹시 몰라서)
+        sub_box[sub_box<0] = 0
+        obj_box[obj_box<0] = 0
+        
+        # 마스크 생성
+        sub_spatial_f = np.zeros((phrase_rois.shape[0], 1, 32, 32)) ## [phrase#, C, H, W]
+        obj_spatial_f = np.zeros((phrase_rois.shape[0], 1, 32, 32)) ## [phrase#, C, H, W]
+        for idx, mask in enumerate(sub_spatial_f):
+            sub_spatial_f[0, sub_box[idx, 1]:sub_box[idx, 3]+1, sub_box[idx, 2]:sub_box[idx, 4]+1] = 1.0
+        for idx, mask in enumerate(obj_spatial_f):
+            obj_spatial_f[0, obj_box[idx, 1]:obj_box[idx, 3]+1, obj_box[idx, 2]:obj_box[idx, 4]+1] = 1.0
+    else:
+        sub_spatial_f = None
+        obj_spatial_f = None
+        
+    # print 'before union', object_rois[id_i[0], :], object_rois[id_j[0], :]
+    # print 'after union', phrase_rois[0, :]
+### prepare connection matrix
+    mat_object, mat_phrase = _prepare_mat(id_i, id_j, rois.shape[0])
+
+    
+    return rois, phrase_rois, mat_object, mat_phrase, \
+           sub_spatial_f, obj_spatial_f ## 추가
+
+def box_union(box1, box2):
+    return np.concatenate((np.minimum(box1[:, :3], box2[:, :3]), np.maximum(box1[:, 3:], box2[:, 3:])), 1)
+
+def _prepare_mat(sub_list, obj_list, object_batchsize):
+    # mps_object [object_batchsize, 2, n_phrase] : the 2 channel means inward(object) and outward(subject) list
+
+    
+    phrase_batchsize = sub_list.size
+    # print 'phrase_batchsize', phrase_batchsize
+
+    mat_object = np.zeros((object_batchsize, 2, phrase_batchsize), dtype=np.int64)
+    mat_phrase = np.zeros((phrase_batchsize, 2), dtype=np.int64)
+    mat_phrase[:, 0] = sub_list
+    mat_phrase[:, 1] = obj_list
+
+    for i in range(phrase_batchsize):
+        mat_object[sub_list[i], 0, i] = 1
+        mat_object[obj_list[i], 1, i] = 1
+
+    return mat_object, mat_phrase
+
+def _generate_pairs(ids):
+    id_i, id_j = np.meshgrid(ids, ids, indexing='ij') # Grouping the input object rois
+    id_i = id_i.reshape(-1) 
+    id_j = id_j.reshape(-1)
+    # remove the diagonal items
+    id_num = len(ids)
+    diagonal_items = np.array(list(range(id_num)))
+    diagonal_items = diagonal_items * id_num + diagonal_items
+    all_id = list(range(len(id_i)))
+    selected_id = np.setdiff1d(all_id, diagonal_items)
+    id_i = id_i[selected_id]
+    id_j = id_j[selected_id]
+
+    return id_i, id_j

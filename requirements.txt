@@ -1,0 +1,8 @@
+ai2thor==0.0.44
+graphviz
+matplotlib
+opencv-python
+colormap
+easydev
+easydict
+# conda install pytorch=0.4.1 cuda80 -c pytorch

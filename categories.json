@@ -1,0 +1,55 @@
+{
+	"object": [
+		"Potato",
+		"Apple",
+		"Lettuce",
+		"Egg",
+		"Tomato",
+		"Bread",
+		"Mug",
+		"Toaster",
+		"CoffeeMachine",
+		"Microwave",
+		"GarbageCan",
+		"Chair",
+		"HousePlant",
+		"Plate",
+		"Bowl",
+		"Spoon",
+		"ButterKnife",
+		"Knife",
+		"Container",
+		"Pot",
+		"Pan",
+		"Sink",
+		"TableTop",
+		"Fridge"
+	],
+	"predicate": [
+		"in",
+		"on",
+		"over",
+		"under",
+		"in_front_of",
+		"behind",
+		"left_of",
+		"right_of"
+	],
+	"color": [
+		"unknown",
+		"black",
+		"white",
+		"gray",
+		"red",
+		"purple",
+		"blue",
+		"green",
+		"yellow",
+		"brown"
+	],
+	"open_state": [
+		"unable",
+		"open",
+		"close"
+	]
+}

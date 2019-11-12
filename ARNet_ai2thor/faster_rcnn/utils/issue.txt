@@ -1,0 +1,13 @@
+python3 버전에서
+cython_nms와 cython_bbox import가 안되는 문제가 있음
+
+https://github.com/CharlesShang/FastMaskRCNN/blob/master/libs/boxes/cython_nms.py
+여기 github의 cython_nms.py, cython_bbox.py을 가져옴.
+그리고 sh make.sh 시 만들어지는 so 파일로 'cython_nms.so' 부분을 대체함 (bbox도 동일)
+
+그리고
+이게 python-config가 안맞아서 그런다는 얘기를 봤었음
+python-config 하면 다른 가상환경의 python이 잡힘
+(이유: 현재 환경은 3.6이라서 python3-config, python3.6-config를 해야 현재 환경이 잡힘)
+그런 이유로 anaconda2/env/ai2thor/bin에 python-config 링크 파일을 만듦
+이게 뻘짓인지 이것때문에 된건지 모르것음 (뻘짓같음)
