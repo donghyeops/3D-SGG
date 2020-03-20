@@ -1,10 +1,20 @@
-# 3dsgg
+# 3D Scene Graph Generation
+- 3D Scene Graph includes Objects, Attributes and Spatial Relationships in 3D virsual environments (Ai2THOR).
+    <p></p>
+    <p align="left" vlign="center">
+      <img src="./imgs/sgg.png" height="350">
+    </p>
 
-3D Scene Graph Generation in Ai2thor 0.0.44  
-
-ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
-VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
-PyTorch_YOLOv3 : YOLOv3 repo  
+## component
+- ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
+    <p align="left" vlign="center">
+      <img src="./imgs/sr.png" height="250">
+    </p>
+- VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
+    <p align="left" vlign="center">
+      <img src="./imgs/vqa.png" height="250">
+    </p>
+- PyTorch_YOLOv3 : YOLOv3 repo  
 
 ## How to run
 ```
@@ -12,7 +22,6 @@ PyTorch_YOLOv3 : YOLOv3 repo
 
 pip install -r requirements.txt
 python run_thor.py
-
 ```
 
 
