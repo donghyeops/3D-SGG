@@ -1,4 +1,5 @@
 # 3D Scene Graph Generation
+- Paper: *"Modelling Dynamics of Indoor Environments with 3D Scene Graphs", ICROS*
 - 3D Scene Graph includes Objects, Attributes and Spatial Relationships in 3D virsual environments (Ai2THOR).
     <p></p>
     <p align="left" vlign="center">
@@ -6,11 +7,11 @@
     </p>
 
 ## component
-- ARNet_ai2thor : Deep Neural Networks for 3D Scene Graph Generation  
+- **ARNet_ai2thor** : Deep Neural Networks for 3D Scene Graph Generation  
     <p align="left" vlign="center">
       <img src="./imgs/sr.png" height="250">
     </p>
-- VeQA : Question Answering System (this need reasoning server with knowrob ontology)  
+- **VeQA** : Question Answering System (this need reasoning server with knowrob ontology)  
     <p align="left" vlign="center">
       <img src="./imgs/vqa.png" height="250">
     </p>
