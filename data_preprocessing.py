@@ -1,18 +1,20 @@
 # -*- coding: utf-8 -*-
+
 import json
+import os
 import os.path as osp
-import cv2
-import numpy as np
 import time
 from pprint import pprint
 import random
 import glob
-import os
 
-# msdn style !!!
-def generate_DB(dataPath='./thor_DB.json', categoryPath='./categories.json', \
+import numpy as np
+import cv2
+
+
+def generate_db(dataPath='./thor_DB.json', categoryPath='./categories.json', \
                 newDataPath='./thor_DB_msdn.json'):
-    # msdn style !!!
+    # msdn style
     # GUI 툴로 생성한 ai2thor DB를 msdn 폼으로 재구성하여 저장됨
 
     print('-- generate thor_DB file --')
@@ -95,7 +97,7 @@ def generate_DB(dataPath='./thor_DB.json', categoryPath='./categories.json', \
     print('file path:', newDataPath)
 
 
-def generate_categoriesFile(dataPath='./class', newDataPath='./categories.json'):
+def generate_categories_file(dataPath='./class', newDataPath='./categories.json'):
     # object, rel, color 등의 클래스 별로 파일을 나누었는데,
     # msdn의 폼에서는 categories 파일에 다 저장됨
     # 이를 위해 여러 클래스 정의 파일들을 categories.json으로 통일시킴
@@ -174,7 +176,7 @@ def get_image_info(dataPath='./thor_DB_msdn.json', imageDir='./images', depth_im
     return mean, std
 
 
-def divide_DB_by_scene(dataPath='./thor_DB_msdn.json'):
+def divide_db_by_scene(dataPath='./thor_DB_msdn.json'):
     # msdn 폼의 DB를 train과 test 집합으로 나눔 [test scene을 설정하고 나눔]
     print('-- divide DB --')
     with open(dataPath, 'r') as f:
@@ -202,7 +204,7 @@ def divide_DB_by_scene(dataPath='./thor_DB_msdn.json'):
     print('generate test.json')
 
 
-def divide_DB_by_random(dataPath='./thor_DB_msdn.json', test_rate=0.2):
+def divide_db_by_random(dataPath='./thor_DB_msdn.json', test_rate=0.2):
     # msdn 폼의 DB를 train과 test 집합으로 나눔 [test set 비율만 정하고 랜덤으로 나눔]
     print('-- divide DB --')
     with open(dataPath, 'r') as f:
@@ -397,16 +399,17 @@ def action_success_definition(action_scenario_dir, output_dir, success_rate=0.8)
 
     print('done')
 
+
 if __name__ == '__main__':
-    # generate_categoriesFile()
-    #generate_DB(dataPath='/media/ailab/D/ai2thor/thor_DB.json')
-    # divide_DB_by_scene(dataPath='./thor_DB_msdn.json')
-    #divide_DB_by_random(dataPath='./thor_DB_msdn.json', test_rate=0.1)
+    # generate_categories_file()
+    # generate_db(dataPath='/media/ailab/D/ai2thor/thor_DB.json')
+    # divide_db_by_scene(dataPath='./thor_DB_msdn.json')
+    # divide_DB_by_random(dataPath='./thor_DB_msdn.json', test_rate=0.1)
     # get_image_info(imageDir='/media/ailab/D/ai2thor/images')
     # get_image_info(imageDir='/media/ailab/D/ai2thor/depth_images', depth_image=True)
-    #get_class_weights(dataPath='./thor_DB_msdn.json')
+    # get_class_weights(dataPath='./thor_DB_msdn.json')
     # make_color_balance(dataPath='./thor_DB_msdn.json')
-    #generate_prior_knowledge(dataPath='./thor_DB_msdn.json')
+    # generate_prior_knowledge(dataPath='./thor_DB_msdn.json')
 
     action_success_definition(action_scenario_dir='/home/ailab/DH/ai2thor/datasets/thorDBv2_gsg_gt/thorDBv2_action_history',
                               output_dir='/home/ailab/DH/ai2thor/datasets/thorDBv2_gsg_gt/thorDBv2_sf_action_history')

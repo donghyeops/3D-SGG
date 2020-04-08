@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from math import pow, sqrt
-import numpy as np
-from thor_utils import annotation_util as au
 import copy
+from math import pow, sqrt
+
+import numpy as np
+
+from thor_utils import annotation_util as au
+
 
 class DynamicGlobalSceneGraphManager():
     def __init__(self, thorCtrl, use_dnn, dnn_check_dict, use_history=False):

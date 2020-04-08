@@ -1,4 +1,5 @@
 import os
+
 from thor_utils import annotation_util as au
 
 rel_owl_class_naming = {'left_of': 'toTheLeftOf',

@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
-import numpy as np
 import os
 import os.path as osp
 import json
 import copy
 import math
 from pprint import pprint as pp
+
+import numpy as np
 
 
 def evalutate_gsg_histories_from_dir(pred_gh_dir, gt_gh_dir, iou_threhold=0.5, gt_target=[], partial_gsg=False):

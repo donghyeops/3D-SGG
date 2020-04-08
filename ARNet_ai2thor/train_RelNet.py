@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+
 import os
+import os.path as osp
+import json
 import shutil
 import time
 import random
@@ -7,9 +10,18 @@ import numpy as np
 import numpy.random as npr
 import argparse
 import math
+import pdb
 
 import torch
 from torch.autograd import Variable
+# To log the training process
+from tensorboard_logger import configure, log_value
+import sys
+# reload(sys)
+# sys.setdefaultencoding('utf8') # 안하면 plt import 오류남
+import matplotlib.pyplot as plt  ## 시각화 함수를 위해 추가
+import matplotlib.patches as patches
+from PIL import Image
 
 from faster_rcnn import network
 from faster_rcnn.RelNet import RelNet  # 2 사용
@@ -18,21 +30,8 @@ from faster_rcnn.fast_rcnn.config import cfg
 from faster_rcnn.datasets.ai2thor_relation_dataset_loader import ai2thor_relation_dataset
 from faster_rcnn.utils.HDN_utils import get_model_name2, group_params
 
-import pdb
 
-# To log the training process
-from tensorboard_logger import configure, log_value
-
-import sys
-# reload(sys)
-# sys.setdefaultencoding('utf8') # 안하면 plt import 오류남
-import matplotlib.pyplot as plt  ## 시각화 함수를 위해 추가
-import matplotlib.patches as patches
-from PIL import Image
-import os.path as osp
-import json
-
-## 피쳐 사이즈 출력
+# 피쳐 사이즈 출력
 show_iter = False  # iteration 출력
 show_DB_shape = False  # Network input data 출력
 
@@ -115,7 +114,7 @@ def main():
     step_size = 20
     test_mode = False
 
-    opt = 'adam' # adam / sgd
+    opt = 'adam'  # adam / sgd
     if opt == 'adam' or opt =='Adam':
         optimizer_class = torch.optim.Adam
     if opt == 'sgd' or opt =='SGD':

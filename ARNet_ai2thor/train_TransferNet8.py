@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import shutil
 import time
 import random
@@ -7,10 +8,12 @@ import numpy as np
 import numpy.random as npr
 import argparse
 import math
-
+import pdb
 
 import torch
 from torch.autograd import Variable
+# To log the training process
+from tensorboard_logger import configure, log_value
 
 from faster_rcnn import network
 from faster_rcnn.TransferNet9 import TransferNet # transferNet9
@@ -19,12 +22,6 @@ from faster_rcnn.fast_rcnn.config import cfg
 from faster_rcnn.datasets.ai2thor_transfer_dataset_loader_8 import ai2thor_transfer_dataset # transferNet7
 from faster_rcnn.utils.HDN_utils import get_model_name2, group_params
 
-import pdb
-
-# To log the training process
-from tensorboard_logger import configure, log_value
-
-import sys
 sys.path.append('/home/ailab/DH/ai2thor')
 temp_path = os.getcwd()
 os.chdir('/home/ailab/DH/ai2thor')

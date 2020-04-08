@@ -1,9 +1,11 @@
 # -*- coding:utf-8 -*-
 
 from __future__ import print_function
-from runner import CT
 import time
 import argparse
+
+from runner import CT
+
 
 
 # 토마토 집어서 냉장고에 넣기

@@ -307,7 +307,6 @@ class AttNet(nn.Module):
         #self.OdDialog.show_image(filePath='temp_od.jpg')
 
 
-
     @staticmethod
     def get_recall(pred_prob, gt):
         pred_prob = pred_prob.data.cpu().numpy()

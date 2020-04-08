@@ -1,9 +1,7 @@
-import ai2thor.controller
 import sys
-from PyQt5 import QtWidgets
-from PyQt5 import QtGui
-from PyQt5 import uic
-from PyQt5 import QtCore
+
+import ai2thor.controller
+from PyQt5 import QtWidgets, QtGui, QtCore, uic
 from PyQt5.QtCore import pyqtSlot
  
  

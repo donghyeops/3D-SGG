@@ -1,11 +1,19 @@
 # -*- coding:utf-8 -*-
 
-import numpy as np
-import torch
-import json
-
 import sys
 import os
+import json
+import copy
+import time
+
+import numpy as np
+import numpy.random as npr
+import torch
+from torch.autograd import Variable
+import torchvision.transforms as transforms
+import cv2
+from PIL import Image
+from matplotlib import pyplot as plt
 
 # sys.path.append(os.path.join(os.getcwd(), 'pytorch_yolo_v3'))
 # from pytorch_yolo_v3.darknet import Darknet
@@ -31,16 +39,9 @@ from ARNet_ai2thor.faster_rcnn.TransferNet_angle import TransferNet  # TransferN
 from ARNet_ai2thor.faster_rcnn import network
 from ARNet_ai2thor.faster_rcnn.fast_rcnn.config import cfg
 
-from PIL import Image
-import torchvision.transforms as transforms
-from torch.autograd import Variable
-import numpy.random as npr
-import cv2
-import copy
-from matplotlib import pyplot as plt
 
-import time
 CHECK_TIME = True
+
 
 class DNNManager():
     def __init__(self):
@@ -608,7 +609,7 @@ class DNNManager():
         for i in range(len(a)):
             distance += np.power(a[i] - b[i], 2)
         return distance
-    # 검토중
+
     def transfer_to_global_map_back(self, boxes, labels, agent):
         if CHECK_TIME:
             st = time.time()
@@ -652,7 +653,6 @@ class DNNManager():
             print('[TIME] 3. run transfer_to_global_map() : {}s'.format(str(total_time)[:7]))
             print('[TIME] \tpre/pos processing time : {}s'.format(str(total_time - sub_time)[:7]))
         return global_coor
-
 
     def predict_relationships(self, global_coors, labels, exist_box_index=[]):
         # exist_box_index에 해당하는 box(in global_coors/labels)끼리의 relationship은 제거함

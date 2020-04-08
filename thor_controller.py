@@ -1,14 +1,15 @@
 # -*- coding:utf-8 -*-
+
 # python 3.6 version
-import ai2thor.controller
 import os
+
 import numpy as np
+
+import ai2thor.controller
 # set distance to 4.0 meters
 # print(os.environ['AI2THOR_VISIBILITY_DISTANCE'])
 os.environ['AI2THOR_VISIBILITY_DISTANCE'] = '10.0'
 
-
-# start ai2thor here
 
 class ThorCtrl:
     def __init__(self, positive_objects=None, smooth_movement=False, magnitude=0.05):
@@ -20,16 +21,16 @@ class ThorCtrl:
         self.action_file_open = False
         self.image_dir_open = False
         self.is_recorded = False
-        self.order_num = 0 # 현재는 레코더 스탭으로 사용
-        self.step_count = 0 # 액션 시 마다 +1
+        self.order_num = 0  # 현재는 레코더 스탭으로 사용
+        self.step_count = 0  # 액션 시 마다 +1
         self.object_global_ids = {}  # 씬이 시작할 때, 씬 안의 object들의 id를 0번부터 정의해둠
         self.positive_objects = positive_objects
         self.smooth_movement = smooth_movement
         self.magnitude = magnitude
 
-        self.bbox_to_visible = True # False: (default) 'visible'로 vis_objs 선정,
-                                    # True: 'instance_detections2D'로 vis_objs 선정
-                                    # 냉장고는 AI2THOR_VISIBILITY_DISTANCE 늘여도, visible하지 않아서 추가한 기능.
+        self.bbox_to_visible = True  # False: (default) 'visible'로 vis_objs 선정,
+                                     # True: 'instance_detections2D'로 vis_objs 선정
+                                     # 냉장고는 AI2THOR_VISIBILITY_DISTANCE 늘여도, visible하지 않아서 추가한 기능.
         self.PRINT_FAIL_LOG = False
     def is_powered(self):
         return self.power

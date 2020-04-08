@@ -1,7 +1,8 @@
 # -*- coding:utf-8 -*-
 
 from __future__ import print_function
-#import run_thor.controller
+
+# import run_thor.controller
 import thor_controller.ThorCtrl
 
 class CT:

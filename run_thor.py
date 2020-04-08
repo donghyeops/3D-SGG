@@ -1,27 +1,30 @@
 # -*- coding:utf-8 -*-
 
-from PyQt5.QtWidgets import QDialog, QApplication, QPushButton, QTextEdit, QComboBox, QLineEdit, QHBoxLayout, \
-    QVBoxLayout, QLabel, QWidget, QScrollArea, QCheckBox, QTextBrowser, QFileDialog
-from PyQt5.QtGui import QImage, QPixmap
-from PyQt5 import uic
-from PyQt5 import QtCore
-from PyQt5.QtCore import pyqtSlot, Qt, QProcess
 import sys
-from thor_controller import ThorCtrl
-from scene_graph_manager import DynamicGlobalSceneGraphManager
-
 import os
-import numpy as np
-import cv2
-from matplotlib import pyplot as plt
-import matplotlib.patches as patches
-from thor_utils import draw_util as du, annotation_util as au, owl_util as ou
-from dataset import ThorDB
-import graphviz as gv
 import random
 import threading
 import time
 import json
+
+import numpy as np
+from matplotlib import pyplot as plt
+import matplotlib.patches as patches
+import graphviz as gv
+import cv2
+from PyQt5 import uic
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import *
+from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import pyqtSlot, Qt, QProcess
+
+from thor_utils import draw_util as du
+from thor_utils import annotation_util as au
+from thor_utils import owl_util as ou
+from dataset import ThorDB
+from thor_controller import ThorCtrl
+from scene_graph_manager import DynamicGlobalSceneGraphManager
+
 
 CHECK_TIME = False
 

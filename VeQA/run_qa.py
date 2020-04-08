@@ -1,12 +1,13 @@
-from connection_manager import SocketConnection
-from dataset_loader import DatasetLoader
-import numpy as np
-from keras.models import load_model
-from semantic_parser import SPMgr
-
 import time
 import sys
 import os
+
+import numpy as np
+from keras.models import load_model
+
+from connection_manager import SocketConnection
+from dataset_loader import DatasetLoader
+from semantic_parser import SPMgr
 _op = os.getcwd()
 os.chdir('/home/ailab/DH/ai2thor')
 sys.path.append('/home/ailab/DH/ai2thor')
@@ -18,6 +19,7 @@ HOST = '203.249.22.18'
 PORT = 7770
 
 qtypes = ['existence', 'counting', 'attribute', 'relation', 'agenthave', 'include']
+
 
 def run_qa_system():
     target_path='/home/ailab/DH/ai2thor/datasets/190514 gsg_pred_OATR_only_recog/owl'

@@ -1,8 +1,9 @@
+import json
+from pprint import pprint
+
 import keras
 from keras.models import *
 from keras.layers import *
-import json
-from pprint import pprint
 
 
 class SPMgr:
