@@ -79,7 +79,7 @@ __Exra. Run VeQA system__
    ```
    python semantic_parser.py
    ```
-   3) test QA system. (this is need to knowledge reasoning engine)
+   3) test QA system. (this need to knowledge reasoning engine)
    ```
    # run knowledge reasoning engine with knowrob.
    python run_qa.py
