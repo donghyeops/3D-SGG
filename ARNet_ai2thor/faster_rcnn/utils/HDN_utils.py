@@ -6,9 +6,7 @@ import numpy as np
 import pdb
 from cython_bbox import bbox_overlaps, bbox_intersections
 
-TEST_MODE = False
 
-## 새로 만듦
 def get_model_name2(arguments):
     arguments.model_name += '_{}'.format(arguments.model_tag)
     arguments.model_name += '_{}'.format(arguments.lr)
@@ -37,6 +35,7 @@ def group_params(net_):
     print('HDN feature length:', len(network_params))
     return vgg_params_fix, vgg_params_var, network_params
 
+
 def check_recall(rois, gt_objects, top_N, thres=0.5):
     overlaps = bbox_overlaps(
         np.ascontiguousarray(rois.cpu().data.numpy()[:top_N, 1:5], dtype=np.float),
@@ -46,6 +45,7 @@ def check_recall(rois, gt_objects, top_N, thres=0.5):
     correct_cnt = np.sum(overlap_gt >= thres)
     total_cnt = overlap_gt.size 
     return correct_cnt, total_cnt
+
 
 def check_relationship_recall(gt_objects, gt_relationships, 
         subject_inds, object_inds, predicate_inds, 
@@ -106,7 +106,7 @@ def check_relationship_recall(gt_objects, gt_relationships,
                         break
     return rel_cnt, rel_correct_cnt
     
-## 새로 만듦
+
 # 관계 카테고리별로 총 개수와 맞춘 개수를 구함
 def check_categorical_relationship_recall(gt_objects, gt_relationships, 
         subject_inds, object_inds, predicate_inds, 
@@ -147,7 +147,8 @@ def check_categorical_relationship_recall(gt_objects, gt_relationships,
                 break
     return cat_rel_cnt, cat_rel_correct_cnt
 
-def check_att_recall(gt_objects, gt_atts, pred_objects, atts_prob, thres=0.5):
+
+def check_att_recall(gt_objects, gt_atts, pred_objects, atts_prob, thres=0.5, TEST_MODE=False):
     overlaps = bbox_overlaps(
         np.ascontiguousarray(pred_objects[:, :], dtype=np.float),
         np.ascontiguousarray(gt_objects[:, :4], dtype=np.float))

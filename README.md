@@ -28,6 +28,7 @@
 ```
 pytorch==0.4.1
 ai2thor==0.0.44
+keras
 pillow
 graphviz
 matplotlib
